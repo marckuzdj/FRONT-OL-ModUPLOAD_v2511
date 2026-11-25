@@ -1100,7 +1100,7 @@ function enviarParaServidor(conteudo, liberacao) {
 
 
   // 3. BLOQUEIO RÍGIDO DE TODOS OS COMANDOS E INÍCIO DO PROGRESSO REMOTO (40% -> 92%)
-  iniciarProgressoSimuladoServidor(40, 92);
+  iniciarProgressoSimuladoServidor(40, 98);
   
  if (fileInput) fileInput.disabled = true;
  if (selectLiberacao) selectLiberacao.disabled = true;
@@ -1314,12 +1314,14 @@ function enviarParaServidor(conteudo, liberacao) {
      if (fileInput) fileInput.value = ''; 
      exibirAviso('statusEnvio', '', '');
      
-   } else {
-     exibirAviso('statusEnvio', 'Erro desconhecido na validação do arquivo.', 'error');
-     if (typeof dispararLogOL === 'function') {
-       dispararLogOL('ENVIO_CARGA_FALHA_DESCONHECIDA', 'Resposta do servidor fora do contrato esperado de JSON.');
-     }
-   }
+    } else {
+      const payloadBruto = JSON.stringify(res);
+      console.warn("⚠️ [RESPOSTA FORA DO CONTRATO]", payloadBruto);
+      exibirAviso('statusEnvio', 'Aviso: Resposta inesperada do servidor: ' + payloadBruto, 'error');
+      if (typeof dispararLogOL === 'function') {
+        dispararLogOL('ENVIO_CARGA_FALHA_DESCONHECIDA', `Resposta fora do contrato: [${payloadBruto}]`);
+      }
+    }
  })
  .catch(err => {
    // REVERTE AS TRAVAS OPERACIONAIS EM CASO DE FALHA DE CONEXÃO FÍSICA
