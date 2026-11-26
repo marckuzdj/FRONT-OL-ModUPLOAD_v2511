@@ -4036,7 +4036,8 @@ let _percentualAtualUpload = 0;
 
 function _obterLegendaPorPercentual(pct) {
   if (pct <= 35) return "Arquivo em análise....";
-  if (pct < 100) return "Aguarde o processamento...";
+  if (pct < 90)  return "Aguarde o processamento...";
+  if (pct < 100) return "Finalizando Envio para Dispatch...";
   return "Finalizando Envio para Dispatch...";
 }
 
@@ -4064,7 +4065,7 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
       btn.disabled = false;
       btn.innerHTML = btn.dataset.htmlOriginal;
       _percentualAtualUpload = 0;
-    }, 700);
+    }, 800);
   }
 }
 
@@ -4072,16 +4073,17 @@ function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98) {
   atualizarProgressoBotaoEnvio(inicioPct, false);
 
   _timerProgressoUpload = setInterval(() => {
+    const btn = document.getElementById('btnEnviarBase');
+    if (!btn) return;
+
     if (_percentualAtualUpload < tetoPct) {
-      const incremento = _percentualAtualUpload < 75 ? 4 : (_percentualAtualUpload < 90 ? 2 : 1);
+      // Ritmo calibrado: 40->80 (+3% a cada 700ms), 80->92 (+2%), 92->98 (+1%)
+      const incremento = _percentualAtualUpload < 80 ? 3 : (_percentualAtualUpload < 92 ? 2 : 1);
       _percentualAtualUpload = Math.min(tetoPct, _percentualAtualUpload + incremento);
       const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
-      const btn = document.getElementById('btnEnviarBase');
-      if (btn) {
-        btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
-      }
+      btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
     }
-  }, 600);
+  }, 700);
 }
 
 function resetarBotaoEnvioImediato() {
@@ -4096,10 +4098,7 @@ function resetarBotaoEnvioImediato() {
   }
   _percentualAtualUpload = 0;
 }
-
-
-
-  
+ 
 		
 </script>
 
