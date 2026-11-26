@@ -4034,7 +4034,7 @@ function fecharModalDispatchReport() {
 let _timerProgressoUpload = null;
 let _percentualAtualUpload = 0;
 
-function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
+function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legenda = "Aguarde processamento....") {
   const btn = document.getElementById('btnEnviarBase');
   if (!btn) return;
 
@@ -4049,7 +4049,7 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
 
   _percentualAtualUpload = Math.min(100, Math.max(0, Math.round(percentual)));
   btn.disabled = true;
-  btn.innerHTML = `<div class="spinner"></div> Aguarde processamento.... ${_percentualAtualUpload}%`;
+  btn.innerHTML = `<div class="spinner"></div> ${legenda} ${_percentualAtualUpload}%`;
 
   if (finalizar) {
     setTimeout(() => {
@@ -4060,16 +4060,16 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
   }
 }
 
-function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 92) {
-  atualizarProgressoBotaoEnvio(inicioPct, false);
+function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98, legenda = "Enviando para Dispatch...") {
+  atualizarProgressoBotaoEnvio(inicioPct, false, legenda);
 
   _timerProgressoUpload = setInterval(() => {
     if (_percentualAtualUpload < tetoPct) {
-      const incremento = _percentualAtualUpload < 70 ? 4 : (_percentualAtualUpload < 85 ? 2 : 1);
+      const incremento = _percentualAtualUpload < 75 ? 4 : (_percentualAtualUpload < 90 ? 2 : 1);
       _percentualAtualUpload = Math.min(tetoPct, _percentualAtualUpload + incremento);
       const btn = document.getElementById('btnEnviarBase');
       if (btn) {
-        btn.innerHTML = `<div class="spinner"></div> Aguarde processamento.... ${_percentualAtualUpload}%`;
+        btn.innerHTML = `<div class="spinner"></div> ${legenda} ${_percentualAtualUpload}%`;
       }
     }
   }, 600);
@@ -4087,6 +4087,7 @@ function resetarBotaoEnvioImediato() {
   }
   _percentualAtualUpload = 0;
 }
+
 
   
 		
