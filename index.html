@@ -4029,12 +4029,18 @@ function fecharModalDispatchReport() {
 }
 
 // =========================================================================
-// 📊 CONTROLADOR DE PROGRESSO NO BOTÃO #btnEnviarBase (COM SPINNER NATIVO)
+// 📊 CONTROLADOR DE PROGRESSO NO BOTÃO #btnEnviarBase (3 FASES DINÂMICAS)
 // =========================================================================
 let _timerProgressoUpload = null;
 let _percentualAtualUpload = 0;
 
-function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legenda = "Aguarde processamento....") {
+function _obterLegendaPorPercentual(pct) {
+  if (pct <= 35) return "Arquivo em análise....";
+  if (pct < 100) return "Aguarde o processamento...";
+  return "Finalizando Envio para Dispatch...";
+}
+
+function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
   const btn = document.getElementById('btnEnviarBase');
   if (!btn) return;
 
@@ -4048,28 +4054,31 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legenda = "
   }
 
   _percentualAtualUpload = Math.min(100, Math.max(0, Math.round(percentual)));
+  const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
+
   btn.disabled = true;
-  btn.innerHTML = `<div class="spinner"></div> ${legenda} ${_percentualAtualUpload}%`;
+  btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
 
   if (finalizar) {
     setTimeout(() => {
       btn.disabled = false;
       btn.innerHTML = btn.dataset.htmlOriginal;
       _percentualAtualUpload = 0;
-    }, 600);
+    }, 700);
   }
 }
 
-function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98, legenda = "Enviando para Dispatch...") {
-  atualizarProgressoBotaoEnvio(inicioPct, false, legenda);
+function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98) {
+  atualizarProgressoBotaoEnvio(inicioPct, false);
 
   _timerProgressoUpload = setInterval(() => {
     if (_percentualAtualUpload < tetoPct) {
       const incremento = _percentualAtualUpload < 75 ? 4 : (_percentualAtualUpload < 90 ? 2 : 1);
       _percentualAtualUpload = Math.min(tetoPct, _percentualAtualUpload + incremento);
+      const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
       const btn = document.getElementById('btnEnviarBase');
       if (btn) {
-        btn.innerHTML = `<div class="spinner"></div> ${legenda} ${_percentualAtualUpload}%`;
+        btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
       }
     }
   }, 600);
@@ -4087,6 +4096,7 @@ function resetarBotaoEnvioImediato() {
   }
   _percentualAtualUpload = 0;
 }
+
 
 
   
