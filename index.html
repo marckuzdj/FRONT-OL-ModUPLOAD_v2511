@@ -330,7 +330,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">ROMANEIOS INPUT v202611.2</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">ROMANEIOS INPUT v202611.3</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de expedição</p>
     </div>
 
@@ -1028,7 +1028,7 @@ function executarCargaDefinitiva(conteudo, liberacao) {
     
     // Junta a lista final limpa (Ex: "202606-M3, 202606-M5, 202606-M6")
     const stringRomaneiosConcat = listaRomaneios.join(', ');
-	_totalRomaneiosUpload = listaRomaneios.length;
+	 _totalRomaneiosUpload = listaRomaneios.length; // 👈 ADICIONAR ESTA LINHA
     // Despacha o log com o mapeamento limpo e legível
     dispararLogOL('ENVIO_CARGA_BANCO_DADOS', `Carga validada e despachada para a transportadora: [${liberacao.toUpperCase()} / Romaneios: ${stringRomaneiosConcat}]`);
     // ==============================================================================
@@ -1099,38 +1099,40 @@ function enviarParaServidor(conteudo, liberacao) {
  }
 
 
-  // 3. BLOQUEIO RÍGIDO DE TODOS OS COMANDOS E INÍCIO DO PROGRESSO REMOTO (40% -> 92%)
-  iniciarProgressoSimuladoServidor(40, 98);
-  
- if (fileInput) fileInput.disabled = true;
- if (selectLiberacao) selectLiberacao.disabled = true;
- 
- if (linkPendentes) {
-   linkPendentes.style.pointerEvents = 'none';
-   linkPendentes.style.opacity = '0.5';
- }
- if (linkTokenDev) {
-   linkTokenDev.style.pointerEvents = 'none';
-   linkTokenDev.style.opacity = '0.4';
- }
- if (linkAlterarRom) {
-   linkAlterarRom.style.pointerEvents = 'none';
-   linkAlterarRom.style.opacity = '0.4';
- }
- exibirAviso('statusEnvio', 'Processando dados no servidor...', 'loading');
- 
- // Montagem do payload transacional unificado
- const payload = {
-   action: 'processarUpload',
-   liberacao: liberacao,
-   conferente: document.getElementById('userLogadoDisplay').value,
-   operador: document.getElementById('operadorLogadoDisplay').value,
-   fileContent: conteudo,
-   uf: UF_SELECIONADA 
- };
- 
- // Disparo HTTP POST direcionado ao Web App
- fetch(WEB_APP_URL, {
+  // 3. BLOQUEIO RÍGIDO DE TODOS OS COMANDOS E INÍCIO DO POLLING REAL
+  const uploadIdAtual = "UPL_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+  iniciarPollingProgressoServidor(uploadIdAtual, _totalRomaneiosUpload);
+
+  if (fileInput) fileInput.disabled = true;
+  if (selectLiberacao) selectLiberacao.disabled = true;
+
+  if (linkPendentes) {
+    linkPendentes.style.pointerEvents = 'none';
+    linkPendentes.style.opacity = '0.5';
+  }
+  if (linkTokenDev) {
+    linkTokenDev.style.pointerEvents = 'none';
+    linkTokenDev.style.opacity = '0.4';
+  }
+  if (linkAlterarRom) {
+    linkAlterarRom.style.pointerEvents = 'none';
+    linkAlterarRom.style.opacity = '0.4';
+  }
+  exibirAviso('statusEnvio', 'Processando dados no servidor...', 'loading');
+
+  // Montagem do payload transacional unificado (com uploadId para rastreio)
+  const payload = {
+    action: 'processarUpload',
+    uploadId: uploadIdAtual,
+    liberacao: liberacao,
+    conferente: document.getElementById('userLogadoDisplay').value,
+    operador: document.getElementById('operadorLogadoDisplay').value,
+    fileContent: conteudo,
+    uf: UF_SELECIONADA
+  };
+
+  // Disparo HTTP POST direcionado ao Web App
+  fetch(WEB_APP_URL, {
    method: 'POST',
    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
    body: JSON.stringify(payload)
@@ -1164,7 +1166,9 @@ function enviarParaServidor(conteudo, liberacao) {
      linkAlterarRom.style.opacity = '1';
    }
    
-    atualizarProgressoBotaoEnvio(100, true); // 👈 100%: Concluído e restaura o botão automaticamente
+    const padLen = Math.max(2, String(_totalRomaneiosUpload || 1).length);
+    const totFmt = String(_totalRomaneiosUpload || 1).padStart(padLen, "0");
+    atualizarProgressoBotaoEnvio(100, true, `Finalizando Envio para Dispatch... (${totFmt}/${totFmt})`);
    
    // Garante que o objeto de resposta não seja nulo ou indefinido por quebra de stream
    if (!res) {
@@ -1324,6 +1328,7 @@ function enviarParaServidor(conteudo, liberacao) {
     }
  })
  .catch(err => {
+   resetarBotaoEnvioImediato(); // 👈 Para o polling, libera a trava anti-saída e restaura o botão
    // REVERTE AS TRAVAS OPERACIONAIS EM CASO DE FALHA DE CONEXÃO FÍSICA
    if (fileInput) fileInput.disabled = false;
    if (selectLiberacao) selectLiberacao.disabled = false;
@@ -4028,40 +4033,21 @@ function fecharModalDispatchReport() {
   }
 }
 
-
- // =========================================================================
-// 📊 CONTROLADOR DE PROGRESSO NO BOTÃO #btnEnviarBase (COM CONTADOR DE ROMANEIOS)
 // =========================================================================
-let _timerProgressoUpload = null;
-let _percentualAtualUpload = 0;
+// 📊 CONTROLADOR DE PROGRESSO REAL (CACHE POLLING + PROTEÇÃO ANTI-SAÍDA)
+// =========================================================================
+let _timerPollingUpload = null;
+let _uploadEmAndamento = false;
 let _totalRomaneiosUpload = 0;
 
-function _obterLegendaPorPercentual(pct) {
-  if (pct <= 35) return "Arquivo em análise....";
-  if (pct < 90)  return "Aguarde o processamento...";
-
-  if (_totalRomaneiosUpload > 0) {
-    const padLength = Math.max(2, String(_totalRomaneiosUpload).length);
-    const totalFormatado = String(_totalRomaneiosUpload).padStart(padLength, "0");
-
-    if (pct >= 100) {
-      return `Finalizando Envio para Dispatch... (${totalFormatado}/${totalFormatado})`;
-    }
-
-    // Mapeia proporcionalmente a faixa de 90% a 98% entre 1 e (total - 1) ou total
-    const progressoFaixa = Math.min(1, Math.max(0, (pct - 90) / 8));
-    const romaneioAtual = Math.min(
-      _totalRomaneiosUpload,
-      Math.max(1, Math.floor(progressoFaixa * _totalRomaneiosUpload) || 1)
-    );
-    const atualFormatado = String(romaneioAtual).padStart(padLength, "0");
-    return `Finalizando Envio para Dispatch... (${atualFormatado}/${totalFormatado})`;
+window.addEventListener('beforeunload', function (e) {
+  if (_uploadEmAndamento) {
+    e.preventDefault();
+    e.returnValue = '';
   }
+});
 
-  return "Finalizando Envio para Dispatch...";
-}
-
-function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
+function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legendaCustom = null) {
   const btn = document.getElementById('btnEnviarBase');
   if (!btn) return;
 
@@ -4069,57 +4055,81 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
     btn.dataset.htmlOriginal = btn.innerHTML.trim() || "Enviar Base";
   }
 
-  if (_timerProgressoUpload) {
-    clearInterval(_timerProgressoUpload);
-    _timerProgressoUpload = null;
+  const pct = Math.min(100, Math.max(0, Math.round(percentual)));
+  let legenda = legendaCustom;
+
+  if (!legenda) {
+    if (pct <= 35) legenda = "Arquivo em análise....";
+    else if (pct < 90) legenda = "Aguarde o processamento...";
+    else legenda = "Finalizando Envio para Dispatch...";
   }
 
-  _percentualAtualUpload = Math.min(100, Math.max(0, Math.round(percentual)));
-  const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
-
   btn.disabled = true;
-  btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
+  btn.innerHTML = `<div class="spinner"></div> ${legenda} ${pct}%`;
 
   if (finalizar) {
+    _uploadEmAndamento = false;
+    pararPollingProgressoServidor();
     setTimeout(() => {
       btn.disabled = false;
       btn.innerHTML = btn.dataset.htmlOriginal;
-      _percentualAtualUpload = 0;
       _totalRomaneiosUpload = 0;
-    }, 850);
+    }, 900);
   }
 }
 
-function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98) {
-  atualizarProgressoBotaoEnvio(inicioPct, false);
+function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
+  _uploadEmAndamento = true;
+  pararPollingProgressoServidor();
 
-  _timerProgressoUpload = setInterval(() => {
-    const btn = document.getElementById('btnEnviarBase');
-    if (!btn) return;
+  const padLen = Math.max(2, String(totalRomaneios || 1).length);
+  const totFmt = String(totalRomaneios || 1).padStart(padLen, "0");
+  atualizarProgressoBotaoEnvio(40, false, `Preparando envio... (00/${totFmt})`);
 
-    if (_percentualAtualUpload < tetoPct) {
-      const incremento = _percentualAtualUpload < 80 ? 3 : (_percentualAtualUpload < 92 ? 2 : 1);
-      _percentualAtualUpload = Math.min(tetoPct, _percentualAtualUpload + incremento);
-      const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
-      btn.innerHTML = `<div class="spinner"></div> ${legendaAtual} ${_percentualAtualUpload}%`;
-    }
-  }, 700);
+  _timerPollingUpload = setInterval(() => {
+    if (!_uploadEmAndamento) return;
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'consultarProgressoUpload', uploadId: uploadId })
+    })
+    .then(r => r.json())
+    .then(prog => {
+      if (!_uploadEmAndamento || !prog || !prog.etapa) return;
+
+      if (prog.etapa === "BASE") {
+        const atualFmt = String(prog.atual).padStart(padLen, "0");
+        const totalReal = String(prog.total).padStart(padLen, "0");
+        const pctBase = 42 + Math.round((prog.atual / prog.total) * 46);
+        atualizarProgressoBotaoEnvio(pctBase, false, `Criando Base_${prog.romaneio}... (${atualFmt}/${totalReal})`);
+      } else if (prog.etapa === "DISPATCH") {
+        atualizarProgressoBotaoEnvio(94, false, `Finalizando Envio para Dispatch... (${totFmt}/${totFmt})`);
+      }
+    })
+    .catch(() => {});
+  }, 1500);
+}
+
+function pararPollingProgressoServidor() {
+  if (_timerPollingUpload) {
+    clearInterval(_timerPollingUpload);
+    _timerPollingUpload = null;
+  }
 }
 
 function resetarBotaoEnvioImediato() {
-  if (_timerProgressoUpload) {
-    clearInterval(_timerProgressoUpload);
-    _timerProgressoUpload = null;
-  }
+  _uploadEmAndamento = false;
+  pararPollingProgressoServidor();
   const btn = document.getElementById('btnEnviarBase');
   if (btn) {
     btn.disabled = false;
     btn.innerHTML = btn.dataset.htmlOriginal || 'Enviar Base';
   }
-  _percentualAtualUpload = 0;
   _totalRomaneiosUpload = 0;
 }
 
+let uploadPendenteData = { conteudo: "", liberacao: "" };
 		
 </script>
 
