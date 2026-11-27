@@ -1028,7 +1028,7 @@ function executarCargaDefinitiva(conteudo, liberacao) {
     
     // Junta a lista final limpa (Ex: "202606-M3, 202606-M5, 202606-M6")
     const stringRomaneiosConcat = listaRomaneios.join(', ');
-
+	_totalRomaneiosUpload = listaRomaneios.length;
     // Despacha o log com o mapeamento limpo e legível
     dispararLogOL('ENVIO_CARGA_BANCO_DADOS', `Carga validada e despachada para a transportadora: [${liberacao.toUpperCase()} / Romaneios: ${stringRomaneiosConcat}]`);
     // ==============================================================================
