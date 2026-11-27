@@ -4084,10 +4084,19 @@ function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
 
   const padLen = Math.max(2, String(totalRomaneios || 1).length);
   const totFmt = String(totalRomaneios || 1).padStart(padLen, "0");
-  atualizarProgressoBotaoEnvio(40, false, `Preparando envio... (00/${totFmt})`);
+  let pctVisual = 40;
+  let recebeuDoServidor = false;
+
+  atualizarProgressoBotaoEnvio(pctVisual, false, `Auditando bases... (00/${totFmt})`);
 
   _timerPollingUpload = setInterval(() => {
     if (!_uploadEmAndamento) return;
+
+    // Enquanto ainda está na auditoria inicial (antes da 1ª Base_ ser criada), avança suavemente 40% -> 52%
+    if (!recebeuDoServidor && pctVisual < 52) {
+      pctVisual += 2;
+      atualizarProgressoBotaoEnvio(pctVisual, false, `Auditando bases... (00/${totFmt})`);
+    }
 
     fetch(WEB_APP_URL, {
       method: 'POST',
@@ -4096,20 +4105,23 @@ function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
     })
     .then(r => r.json())
     .then(prog => {
-      if (!_uploadEmAndamento || !prog || !prog.etapa) return;
+      if (!_uploadEmAndamento || !prog || !prog.etapa || prog.etapa === "AGUARDANDO") return;
+
+      recebeuDoServidor = true;
 
       if (prog.etapa === "BASE") {
         const atualFmt = String(prog.atual).padStart(padLen, "0");
         const totalReal = String(prog.total).padStart(padLen, "0");
-        const pctBase = 42 + Math.round((prog.atual / prog.total) * 46);
+        const pctBase = 52 + Math.round((prog.atual / prog.total) * 38); // 52% -> 90%
         atualizarProgressoBotaoEnvio(pctBase, false, `Criando Base_${prog.romaneio}... (${atualFmt}/${totalReal})`);
       } else if (prog.etapa === "DISPATCH") {
-        atualizarProgressoBotaoEnvio(94, false, `Finalizando Envio para Dispatch... (${totFmt}/${totFmt})`);
+        atualizarProgressoBotaoEnvio(95, false, `Finalizando Envio para Dispatch... (${totFmt}/${totFmt})`);
       }
     })
     .catch(() => {});
-  }, 1500);
+  }, 1200);
 }
+
 
 function pararPollingProgressoServidor() {
   if (_timerPollingUpload) {
