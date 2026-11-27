@@ -868,6 +868,8 @@
 let uploadPendenteData = { conteudo: "", liberacao: "" };
 
 function processarEnvio() {
+	
+	if (_uploadEmAndamento) return; // Bloqueio imediato se já houver processo ativo
     console.log("🚀 [FRONT-OL] Botão Enviar Base clicado. Iniciando rotina...");
     dispararLogOL("UPLOAD_CSV_START", "🚀 [FRONT-OL] Botão Enviar Base clicado. Iniciando rotina...");
 
@@ -4055,6 +4057,8 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legendaCust
     btn.dataset.htmlOriginal = btn.innerHTML.trim() || "Enviar Base";
   }
 
+  _uploadEmAndamento = !finalizar;
+
   const pct = Math.min(100, Math.max(0, Math.round(percentual)));
   let legenda = legendaCustom;
 
@@ -4064,19 +4068,40 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false, legendaCust
     else legenda = "Finalizando Envio para Dispatch...";
   }
 
+  // Trava física, visual e de ponteiro
   btn.disabled = true;
+  btn.style.pointerEvents = 'none';
+  btn.style.opacity = '0.75';
+  btn.style.cursor = 'not-allowed';
   btn.innerHTML = `<div class="spinner"></div> ${legenda} ${pct}%`;
 
   if (finalizar) {
-    _uploadEmAndamento = false;
     pararPollingProgressoServidor();
     setTimeout(() => {
       btn.disabled = false;
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
       btn.innerHTML = btn.dataset.htmlOriginal;
       _totalRomaneiosUpload = 0;
     }, 900);
   }
 }
+
+function resetarBotaoEnvioImediato() {
+  _uploadEmAndamento = false;
+  pararPollingProgressoServidor();
+  const btn = document.getElementById('btnEnviarBase');
+  if (btn) {
+    btn.disabled = false;
+    btn.style.pointerEvents = 'auto';
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = btn.dataset.htmlOriginal || 'Enviar Base';
+  }
+  _totalRomaneiosUpload = 0;
+}
+
 
 function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
   _uploadEmAndamento = true;
@@ -4087,7 +4112,7 @@ function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
   let pctVisual = 40;
   let recebeuDoServidor = false;
 
-  atualizarProgressoBotaoEnvio(pctVisual, false, `Auditando bases... (00/${totFmt})`);
+  atualizarProgressoBotaoEnvio(pctVisual, false, `Iniciando Import... (00/${totFmt})`);
 
   _timerPollingUpload = setInterval(() => {
     if (!_uploadEmAndamento) return;
@@ -4095,7 +4120,7 @@ function iniciarPollingProgressoServidor(uploadId, totalRomaneios) {
     // Enquanto ainda está na auditoria inicial (antes da 1ª Base_ ser criada), avança suavemente 40% -> 52%
     if (!recebeuDoServidor && pctVisual < 52) {
       pctVisual += 2;
-      atualizarProgressoBotaoEnvio(pctVisual, false, `Auditando bases... (00/${totFmt})`);
+      atualizarProgressoBotaoEnvio(pctVisual, false, `Aguarde o Processamento... (00/${totFmt})`);
     }
 
     fetch(WEB_APP_URL, {
@@ -4130,16 +4155,6 @@ function pararPollingProgressoServidor() {
   }
 }
 
-function resetarBotaoEnvioImediato() {
-  _uploadEmAndamento = false;
-  pararPollingProgressoServidor();
-  const btn = document.getElementById('btnEnviarBase');
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = btn.dataset.htmlOriginal || 'Enviar Base';
-  }
-  _totalRomaneiosUpload = 0;
-}
 		
 </script>
 
