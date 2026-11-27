@@ -4028,16 +4028,36 @@ function fecharModalDispatchReport() {
   }
 }
 
-// =========================================================================
-// 📊 CONTROLADOR DE PROGRESSO NO BOTÃO #btnEnviarBase (3 FASES DINÂMICAS)
+
+ // =========================================================================
+// 📊 CONTROLADOR DE PROGRESSO NO BOTÃO #btnEnviarBase (COM CONTADOR DE ROMANEIOS)
 // =========================================================================
 let _timerProgressoUpload = null;
 let _percentualAtualUpload = 0;
+let _totalRomaneiosUpload = 0;
 
 function _obterLegendaPorPercentual(pct) {
   if (pct <= 35) return "Arquivo em análise....";
   if (pct < 90)  return "Aguarde o processamento...";
-  if (pct < 100) return "Finalizando Envio para Dispatch...";
+
+  if (_totalRomaneiosUpload > 0) {
+    const padLength = Math.max(2, String(_totalRomaneiosUpload).length);
+    const totalFormatado = String(_totalRomaneiosUpload).padStart(padLength, "0");
+
+    if (pct >= 100) {
+      return `Finalizando Envio para Dispatch... (${totalFormatado}/${totalFormatado})`;
+    }
+
+    // Mapeia proporcionalmente a faixa de 90% a 98% entre 1 e (total - 1) ou total
+    const progressoFaixa = Math.min(1, Math.max(0, (pct - 90) / 8));
+    const romaneioAtual = Math.min(
+      _totalRomaneiosUpload,
+      Math.max(1, Math.floor(progressoFaixa * _totalRomaneiosUpload) || 1)
+    );
+    const atualFormatado = String(romaneioAtual).padStart(padLength, "0");
+    return `Finalizando Envio para Dispatch... (${atualFormatado}/${totalFormatado})`;
+  }
+
   return "Finalizando Envio para Dispatch...";
 }
 
@@ -4065,7 +4085,8 @@ function atualizarProgressoBotaoEnvio(percentual, finalizar = false) {
       btn.disabled = false;
       btn.innerHTML = btn.dataset.htmlOriginal;
       _percentualAtualUpload = 0;
-    }, 800);
+      _totalRomaneiosUpload = 0;
+    }, 850);
   }
 }
 
@@ -4077,7 +4098,6 @@ function iniciarProgressoSimuladoServidor(inicioPct = 40, tetoPct = 98) {
     if (!btn) return;
 
     if (_percentualAtualUpload < tetoPct) {
-      // Ritmo calibrado: 40->80 (+3% a cada 700ms), 80->92 (+2%), 92->98 (+1%)
       const incremento = _percentualAtualUpload < 80 ? 3 : (_percentualAtualUpload < 92 ? 2 : 1);
       _percentualAtualUpload = Math.min(tetoPct, _percentualAtualUpload + incremento);
       const legendaAtual = _obterLegendaPorPercentual(_percentualAtualUpload);
@@ -4097,8 +4117,9 @@ function resetarBotaoEnvioImediato() {
     btn.innerHTML = btn.dataset.htmlOriginal || 'Enviar Base';
   }
   _percentualAtualUpload = 0;
+  _totalRomaneiosUpload = 0;
 }
- 
+
 		
 </script>
 
